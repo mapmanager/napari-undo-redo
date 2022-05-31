@@ -1,7 +1,6 @@
+from caretaker import CareTaker
 from napari.layers import Layer
-
-from .caretaker import CareTaker
-from .originator import Originator
+from originator import Originator
 
 
 class UndoPlugin:
