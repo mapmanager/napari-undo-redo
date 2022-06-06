@@ -1,5 +1,6 @@
 from napari.layers import Layer
-from state import State
+
+from .state import State
 
 
 class Originator:
@@ -8,10 +9,8 @@ class Originator:
     - Saves the current state of the layer
     """
 
-    # def __init__(self) -> None:
-    #     self.layer = None
-    def __init__(self, layer: Layer) -> None:
-        self.layer = layer
+    def __init__(self) -> None:
+        self.layer = None
 
     def set_layer(self, layer: Layer) -> None:
         self.layer = layer

@@ -1,6 +1,7 @@
 import napari
 import numpy as np
-from plugin import UndoPlugin
+
+from .plugin import UndoPlugin
 
 viewer = napari.Viewer()
 

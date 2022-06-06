@@ -1,6 +1,6 @@
 from copy import deepcopy
 
-from napari.layers import Layer
+from napari.layers import Layer, Points, Shapes
 
 
 class State:
@@ -19,10 +19,24 @@ class State:
         # we are doing a deepcopy because we don't want the state to be
         # modified whenever the layer is modified.
         # instead we are creating a state with a new layer everytime
-        self.layer = deepcopy(layer)
+        # self.layer = deepcopy(layer) # Getting this error:
+        # "NotImplementedError: object proxy must define __deepcopy__()"
+
+        # Pickling layer to bytes as a workaround because deepcopy doesn't work
+        # Doesn' work, getting this error:
+        # "TypeError: cannot pickle 'generator' object"
+        # self.layer = pickle.dumps(layer)
+
+        if isinstance(layer, Points):
+            print("creating points layer state")
+            self.layer = Points(data=deepcopy(layer.data))
+        elif isinstance(layer, Shapes):
+            print("creating shapes layer state")
+            self.layer = Shapes(data=deepcopy(layer.data))
 
     def get_layer(self) -> Layer:
         """
         returns the napari layer in this state
         """
         return self.layer
+        # return pickle.loads(self.layer)

@@ -1,21 +1,10 @@
 name: napari-undo-redo
 display_name: Napari Undo-Redo Plugin
 contributions:
-  commands: 
-    - id: napari-undo-redo.make_qwidget
-      python_name: napari_undo_redo._widget:ExampleQWidget
-      title: Make example QWidget
-    - id: napari-undo-redo.make_magic_widget
-      python_name: napari_undo_redo._widget:example_magic_widget
-      title: Make example magic widget
-    - id: napari-undo-redo.make_func_widget
-      python_name: napari_undo_redo._widget:example_function_widget
-      title: Make example function widget   
+  commands:
+    - id: napari-undo-redo.make_my_qwidget
+      python_name: napari_undo_redo._widget:UndoRedoWidget
+      title: Make undo-redo widget
   widgets:
-    - command: napari-undo-redo.make_qwidget
-      display_name: Example QWidget
-    - command: napari-undo-redo.make_magic_widget
-      display_name: Example Magic Widget
-    - command: napari-undo-redo.make_func_widget
-      autogenerate: true
-      display_name: Example Function Widget 
+    - command: napari-undo-redo.make_my_qwidget
+      display_name: Undo-Redo Widget
