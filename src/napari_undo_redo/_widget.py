@@ -9,7 +9,7 @@ BUGS:
 
 import warnings
 from pprint import pprint
-from typing import Optional
+from typing import Dict, Optional
 
 import napari
 import numpy as np
@@ -19,8 +19,7 @@ from napari.viewer import Viewer
 from qtpy import QtWidgets
 
 from ._my_logger import logger
-from .caretaker import CareTaker
-from .originator import Originator
+from .command import CommandManager
 
 
 class UndoRedoWidget(QtWidgets.QWidget):
@@ -31,16 +30,18 @@ class UndoRedoWidget(QtWidgets.QWidget):
 
         self.viewer = viewer
         self.layer = None
-        self.originator = Originator()
-        self.caretaker = CareTaker()
-        self.savedStates = 0
-        self.currentStateIdx = -1
+        self.command_managers: Dict[int:CommandManager] = {}
+        # self.originator = Originator()
+        # self.caretaker = CareTaker()
+        # self.savedStates = 0
+        # self.currentStateIdx = -1
 
         self.configure_gui()
 
         if layer:
             print("inside if")
             self.layer = layer
+            self.command_managers[id(self.layer)] = CommandManager(layer)
             self.connect_layer(self.layer)
 
             # when the widget is initalized,
@@ -99,6 +100,8 @@ class UndoRedoWidget(QtWidgets.QWidget):
         print("save_state")
         pprint(event)
         layer = event.source
+        # command_manager = self.command_managers.get(id(layer))
+        # command_manager.add_command_to_undo_stack()
         print(f"layer: {layer}")
         print(f"type(layer): {type(layer)}")
         self.originator.set_layer(layer)
