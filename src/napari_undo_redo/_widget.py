@@ -17,9 +17,8 @@ from napari.utils.events import Event
 from napari.viewer import Viewer
 from qtpy import QtWidgets
 
-from napari_undo_redo.command import AddCommand, CommandManager
-
 from ._my_logger import logger
+from .command import AddCommand, CommandManager
 from .utils import setsAreEqual
 
 
@@ -36,13 +35,11 @@ class UndoRedoWidget(QtWidgets.QWidget):
 
         self.viewer = viewer
         self.layer = None
-        # self.layer_id = 0
-        self.layer_id = ""
+        self.layer_id = 0
         self.layer_data = None
         # TODO: using layer name as key for now. Will change it to id once
         # https://github.com/napari/napari/issues/5229 is fixed.
-        # self.command_managers: Dict[int:CommandManager] = {}
-        self.command_managers: Dict[str:CommandManager] = {}
+        self.command_managers: Dict[int:CommandManager] = {}
         self.configure_gui()
 
         if layer:
@@ -81,9 +78,7 @@ class UndoRedoWidget(QtWidgets.QWidget):
         # # if 'data' in vars(layer).keys():
         # if layer.data:
         #     self.layer_data = layer.data
-
-        # self.layer_id = id(layer)
-        self.layer_id = layer.name
+        self.layer_id = hash(layer)
         logger.info(
             "_init_command_manager: adding command manager for "
             + f"layer id {self.layer_id}"
@@ -215,14 +210,12 @@ class UndoRedoWidget(QtWidgets.QWidget):
     def slot_user_highlight_data(self, event: Event) -> None:
         logger.info(vars(event))
         logger.info(event.source.name)
-
         if setsAreEqual(event.source.selected_data, self.layer_data):
             # no change
             return
 
         self.layer = event.source
-        # self.layer_id = id(event.source)
-        self.layer_id = event.source.name
+        self.layer_id = hash(event.source)
 
         command_manager = self.command_managers.get(self.layer_id)
         if not command_manager:
