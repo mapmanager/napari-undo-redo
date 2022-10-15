@@ -9,57 +9,64 @@ BUGS:
 
 import warnings
 from pprint import pprint
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Tuple
 
-import napari
 import numpy as np
 from napari.layers import Layer
 from napari.utils.events import Event
 from napari.viewer import Viewer
 from qtpy import QtWidgets
 
+from napari_undo_redo.command import AddCommand, CommandManager
+
 from ._my_logger import logger
-from .command import CommandManager
+from .utils import setsAreEqual
 
 
 class UndoRedoWidget(QtWidgets.QWidget):
     def __init__(self, viewer: Viewer, layer: Optional[Layer] = None) -> None:
+        """
+        Note that each layer has its command manager, which is why
+        we are creating a dictionary of command managers
+        which maps layerID to command manager instance.
+        """
         super().__init__()
 
         warnings.filterwarnings(action="ignore", category=FutureWarning)
 
         self.viewer = viewer
         self.layer = None
-        self.command_managers: Dict[int:CommandManager] = {}
-        # self.originator = Originator()
-        # self.caretaker = CareTaker()
-        # self.savedStates = 0
-        # self.currentStateIdx = -1
-
+        # self.layer_id = 0
+        self.layer_id = ""
+        self.layer_data = None
+        # TODO: using layer name as key for now. Will change it to id once
+        # https://github.com/napari/napari/issues/5229 is fixed.
+        # self.command_managers: Dict[int:CommandManager] = {}
+        self.command_managers: Dict[str:CommandManager] = {}
         self.configure_gui()
 
         if layer:
-            print("inside if")
+            logger.info("layer found")
+            logger.info(layer)
             self.layer = layer
-            self.command_managers[id(self.layer)] = CommandManager(layer)
-            self.connect_layer(self.layer)
-
+            self._init_command_manager(layer)
             # when the widget is initalized,
             # we also want to save the state at which the layer currently is.
             # so we create an event of type "init" and trigger save_state
-            event = Event("init")
-            event._push_source(self.layer)  # _push_source sets event.source
-            self.save_state(event)
+            # event = Event("init")
+            # event._push_source(self.layer)  # _push_source sets event.source
+            # self.save_state(event)
         else:
-            print("inside else")
+            logger.info("layer not found. Finding active layer")
             active_layer = self.find_active_layers()
             if active_layer:
-                print("inside else if")
+                logger.info("active layer found")
+                logger.info(active_layer)
                 self.layer = active_layer
-                self.connect_layer(self.layer)
-                event = Event("init")
-                event._push_source(self.layer)
-                self.save_state(event)
+                self._init_command_manager(active_layer)
+                # event = Event("init")
+                # event._push_source(self.layer)
+                # self.save_state(event)
                 # self.save_state(Event("init", {"source": self.layer}))
 
         # slots to detect a change in layer selection,
@@ -70,128 +77,41 @@ class UndoRedoWidget(QtWidgets.QWidget):
             self.slot_select_layer
         )
 
-    # actual undo functionality:
+    def _init_command_manager(self, layer: Layer):
+        # # if 'data' in vars(layer).keys():
+        # if layer.data:
+        #     self.layer_data = layer.data
 
-    def save_state(self, event: Event) -> None:
-        """
-        Save the current state of the napari layer.
-        This is called whenever any change happens in a layer.
+        # self.layer_id = id(layer)
+        self.layer_id = layer.name
+        logger.info(
+            "_init_command_manager: adding command manager for "
+            + f"layer id {self.layer_id}"
+        )
+        self.command_managers[self.layer_id] = CommandManager(layer)
+        self.connect_layer(self.layer)
 
-        Args:
-            layer: napari.layers.Layer
-
-        What it's doing:
-        0. If the layer's state has changed, only then do the following:
-        1. Save the current layer snapshot in the originator
-        2. Convert this snapshot into State
-        3. Ask the caretaker to store this State in its list of states
-        4. Increment the number of savedStates by 1
-        5. Increment current state Idx to make it point to most recent state
-        """
-        if event.type != "init" and not event.source:
-            # ignore event without source
+    def undo(self):
+        logger.info(f"undo called for layer id {self.layer_id}")
+        command_manager = self.command_managers.get(self.layer_id)
+        if not command_manager:
+            logger.info(
+                f"no command manager found for layer id {self.layer_id}"
+            )
             return
 
-        if not self._has_state_changed(event):
-            # this check is important because
-            # there's no need to save state if no change has occured
+        command_manager.undo()
+
+    def redo(self):
+        logger.info(f"redo called for layer id {self.layer_id}")
+        command_manager = self.command_managers.get(self.layer_id)
+        if not command_manager:
+            logger.info(
+                f"no command manager found for layer id {self.layer_id}"
+            )
             return
 
-        print("save_state")
-        pprint(event)
-        layer = event.source
-        # command_manager = self.command_managers.get(id(layer))
-        # command_manager.add_command_to_undo_stack()
-        print(f"layer: {layer}")
-        print(f"type(layer): {type(layer)}")
-        self.originator.set_layer(layer)
-        state = self.originator.store_in_state()
-        self.caretaker.add_state(state)
-        self.savedStates += 1
-        self.currentStateIdx += 1
-        print(f"currentStateIdx: {self.currentStateIdx}")
-
-    def _has_state_changed(self, event: Event) -> bool:
-        """
-        Checks if the layer's state has changed
-
-        Args:
-            event: Event
-
-        What it's doing:
-        0. If its the initial state then return true
-        to store the layer's initial state
-        1. Use currentStateIdx to get the last stored
-        state (existing state) from the caretaker
-        2. Use originator to restore layer information
-        from the last stored state
-        3. check if layer information of current event
-        is different from last stored state
-        4. if yes, return true because state has changed
-        """
-        if event.type == "init":
-            return True
-
-        existing_state = self.caretaker.get_state(self.currentStateIdx)
-        existing_data = self.originator.restore_from_state(existing_state).data
-        print(f"type(existing_data): {type(existing_data)}")
-        changed = not np.array_equal(event.source.data, existing_data)
-        print(f"type(changed): {type(changed)}")
-        print(f"changed: {changed}")
-        return changed
-
-    def undo(self) -> Layer:
-        """
-        0. Cannot undo at currentStateIdx 0 since that is the initial state
-        1. Decrement the currentStateIdx to the previous index
-            (since that state will become the most recent state after undo)
-        2. Get the state at that index
-        3. Get the layer at that state
-        4. return the layer
-        """
-        if self.currentStateIdx >= 1:
-            self.currentStateIdx -= 1
-            print(f"currentStateIdx: {self.currentStateIdx}")
-            previous_state = self.caretaker.get_state(self.currentStateIdx)
-            layer_at_previous_state = self.originator.restore_from_state(
-                previous_state
-            )
-            self.layer = layer_at_previous_state
-            active_layer = self.find_active_layers()
-            active_layer.data = self.layer.data
-            return layer_at_previous_state
-        else:
-            # disable the undo button
-            print("undo not allowed")
-            return None
-
-    def redo(self) -> Layer:
-        """
-        0. Cannot redo if currentStateIdx is at the last index
-            -> because we are already at the most recent state
-        1. Increment the currentStateIdx to the next index
-            (since that state will become the most recent state after redo)
-        2. Get the state at that index
-        3. Get the layer at that state
-        4. return the layer
-        """
-        if (
-            self.savedStates - 1
-        ) > self.currentStateIdx:  # revisit this condition to allow redo
-            self.currentStateIdx += 1
-            print(f"currentStateIdx: {self.currentStateIdx}")
-            next_state = self.caretaker.get_state(self.currentStateIdx)
-            layer_at_next_state = self.originator.restore_from_state(
-                next_state
-            )
-            self.layer = layer_at_next_state
-            active_layer = self.find_active_layers()
-            active_layer.data = self.layer.data
-            return layer_at_next_state
-        else:
-            # disable the redo button
-            print("redo not available")
-            return None
+        command_manager.redo()
 
     # widget related functions:
     def configure_gui(self) -> None:
@@ -213,9 +133,10 @@ class UndoRedoWidget(QtWidgets.QWidget):
         """
         Find pre-existing selected layer.
         """
-        currently_selected_layer = (
-            self.viewer.layers.selection.active
-        )  # or self.viewer.layers.selected[0]
+        currently_selected_layer = self.viewer.layers.selection.active
+        # currently_selected_layer = (
+        #     self.viewer.layers.selection.active
+        # )  # or self.viewer.layers.selected[0]
         if currently_selected_layer:
             return currently_selected_layer
         return None
@@ -231,19 +152,24 @@ class UndoRedoWidget(QtWidgets.QWidget):
 
         # first disconnect events from earlier layer if its not None
         if self.layer:
-            self.layer.events.data.disconnect(self.save_state)
+            # self.layer.events.data.disconnect(self.save_state)
             # self.layer.events.name.disconnect(self.save_state)
             # self.layer.events.symbol.disconnect(self.save_state)
             # self.layer.events.size.disconnect(self.save_state)
-            # self.layer.events.highlight.disconnect(self.save_state)
+            self.layer.events.highlight.disconnect(
+                self.slot_user_highlight_data
+            )
 
         # set the global layer to the new layer and connect it to events
         self.layer = layer
-        self.layer.events.data.connect(self.save_state)
+        # if 'data' in vars(layer).keys():
+        if layer.data.any():
+            self.layer_data = layer.data
+        # self.layer.events.data.connect(self.save_state)
         # self.layer.events.name.connect(self.save_state)
         # self.layer.events.symbol.connect(self.save_state)
         # self.layer.events.size.connect(self.save_state)
-        # self.layer.events.highlight.connect(self.save_state)
+        self.layer.events.highlight.connect(self.slot_user_highlight_data)
 
     # Slots start here:
 
@@ -272,8 +198,7 @@ class UndoRedoWidget(QtWidgets.QWidget):
 
         newly_inserted_layer = event.source
         if newly_inserted_layer:
-            # self.connect_layer(newly_inserted_layer)
-            pass
+            self.connect_layer(newly_inserted_layer)
 
     def slot_remove_layer(self, event: Event) -> None:
         """
@@ -287,44 +212,99 @@ class UndoRedoWidget(QtWidgets.QWidget):
         if currently_selected_layer and currently_selected_layer != self.layer:
             self.connect_layer(currently_selected_layer)
 
+    def slot_user_highlight_data(self, event: Event) -> None:
+        logger.info(vars(event))
+        logger.info(event.source.name)
 
-# test simulation
-def run():
-    viewer = Viewer()
+        if setsAreEqual(event.source.selected_data, self.layer_data):
+            # no change
+            return
 
-    points_layer = viewer.add_points(
-        data=np.array([[0, 10, 10], [0, 20, 20], [0, 30, 30], [0, 40, 40]]),
-        ndim=3,
-        name="my points layer",
-        size=3,
-        face_color="red",
-        shown=True,
-        features={"f1": "a", "f2": 2},
-    )
+        self.layer = event.source
+        # self.layer_id = id(event.source)
+        self.layer_id = event.source.name
 
-    plugin = UndoRedoWidget(viewer, points_layer)
-    plugin.save_state(points_layer)
-    print(f"initial:\n{points_layer.data}\n")
+        command_manager = self.command_managers.get(self.layer_id)
+        if not command_manager:
+            command_manager = CommandManager(self.layer)
+            self.command_managers[self.layer_id] = command_manager
+            logger.info(f"added command manager for layer id {self.layer_id}")
 
-    # simulate adding point
-    points_layer.data = np.array(
-        [[0, 10, 10], [0, 20, 20], [0, 30, 30], [0, 40, 40], [0, 50, 50]]
-    )
-    plugin.save_state(points_layer)
+        if self.layer_data is None:
+            self.layer_data = event.source.data
+            logger.info("returning")
+            return
 
-    # undo
-    print(f"after adding point:\n{points_layer.data}\n")
-    layer_after_undo = plugin.undo()
-    points_layer = layer_after_undo
-    print(f"after undo:\n{points_layer.data}\n")
+        if len(event.source.data) > len(self.layer_data):
+            # push add command to undo stack
+            # need to get the point's index and coordinates
+            # event.source.data - self.layer_data ?
+            logger.info("add")
+            added_indices, added_points = _get_diff(
+                event.source.data, self.layer_data
+            )
+            command = AddCommand(event.source, added_indices, added_points)
+            command_manager.add_command_to_undo_stack(command)
+            self.layer_data = event.source.data
 
-    # redo
-    layer_after_redo = plugin.redo()
-    points_layer = layer_after_redo
-    print(f"after redo:\n{points_layer.data}\n")
+        elif len(event.source.data) < len(self.layer_data):
+            # push delete command to undo stack
+            # need to get the point's index and coordinates
+            # self.layer_data - event.source.data ?
+            logger.info("delete")
+            self.layer_data = event.source.data
 
-    napari.run()
+        else:
+            # push move command to undo stack
+            logger.info("move")
 
 
-if __name__ == "__main__":
-    run()
+def _get_diff(
+    layer1_data: np.ndarray, layer2_data: np.ndarray
+) -> Tuple[List[int], np.ndarray]:
+    # get the points which are in layer1 but not in layer2
+    diff = np.setdiff1d(layer1_data, layer2_data)
+    logger.info(diff)
+    logger.info(diff.shape)
+    logger.info(len(diff))
+
+    """
+    [
+        [10, 10],
+        [20, 30],
+        [50, 100]
+    ]
+    """
+
+    logger.info(np.where(layer1_data == diff))
+    index = np.where(layer1_data == diff)[0]
+    logger.info(f"Found index: {index}")
+    indices = list(set(index.tolist()))
+
+    logger.info(indices)
+    logger.info(layer1_data)
+    return (indices, diff)
+
+
+# # test simulation
+# def run():
+#     viewer = Viewer()
+
+#     points_layer = viewer.add_points(
+#         data=np.array([[0, 10, 10], [0, 20, 20], [0, 30, 30], [0, 40, 40]]),
+#         ndim=3,
+#         name="my points layer",
+#         size=3,
+#         face_color="red",
+#         shown=True,
+#         features={"f1": "a", "f2": 2},
+#     )
+
+#     plugin = UndoRedoWidget(viewer, points_layer)
+
+
+#     napari.run()
+
+
+# if __name__ == "__main__":
+#     run()

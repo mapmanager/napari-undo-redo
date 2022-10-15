@@ -1,8 +1,9 @@
 from typing import List
 
 import numpy as np
-from base import Command
 from napari.layers import Layer
+
+from napari_undo_redo.command.base import Command
 
 
 class MoveCommand(Command):

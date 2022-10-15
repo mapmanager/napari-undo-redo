@@ -24,7 +24,6 @@ class CommandManager:
         self.layer = layer
         self.undo_stack = deque()
         self.redo_stack = deque()
-        print(f"layer id: {id(self.layer)}")
 
     def set_layer(self, layer: Layer) -> None:
         self.layer = layer
@@ -63,7 +62,8 @@ def main():
         shown=True,
         features={"f1": "a", "f2": 2},
     )
-    print(f"layer id: {id(points_layer)}")
+    # print(f"layer id: {id(points_layer)}")
+    print(f"layer id: {points_layer.name}")
     manager = CommandManager(points_layer)
     print(f"Points initially:\n{points_layer.data}")
 
@@ -84,10 +84,16 @@ def main():
 
     # delete point
     print("Testing Delete Command Undo-Redo....")
+    # points_layer.data = np.array(
+    #     [[0, 10, 10], [0, 20, 20], [0, 30, 30], [0, 40, 40]]
+    # )
+    # delPoint = DeleteCommand(points_layer, [4], np.array([[0, 50, 50]]))
+
     points_layer.data = np.array(
-        [[0, 10, 10], [0, 20, 20], [0, 30, 30], [0, 40, 40]]
+        [[0, 10, 10], [0, 20, 20], [0, 40, 40], [0, 50, 50]]
     )
-    delPoint = DeleteCommand(points_layer, [4], np.array([[0, 50, 50]]))
+    delPoint = DeleteCommand(points_layer, [2], np.array([[0, 30, 30]]))
+
     manager.add_command_to_undo_stack(delPoint)
     print(f"Points after delete a point:\n{points_layer.data}")
 
