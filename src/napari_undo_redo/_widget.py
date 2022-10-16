@@ -9,7 +9,7 @@ BUGS:
 
 import warnings
 from pprint import pprint
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from napari.layers import Layer
@@ -18,7 +18,7 @@ from napari.viewer import Viewer
 from qtpy import QtWidgets
 
 from ._my_logger import logger
-from .command import AddCommand, CommandManager
+from .command import AddCommand, CommandManager, DeleteCommand, MoveCommand
 from .utils import setsAreEqual
 
 
@@ -154,6 +154,7 @@ class UndoRedoWidget(QtWidgets.QWidget):
             self.layer.events.highlight.disconnect(
                 self.slot_user_highlight_data
             )
+            self.layer.events.select.disconnect(self.slot_user_select_data)
 
         # set the global layer to the new layer and connect it to events
         self.layer = layer
@@ -165,6 +166,7 @@ class UndoRedoWidget(QtWidgets.QWidget):
         # self.layer.events.symbol.connect(self.save_state)
         # self.layer.events.size.connect(self.save_state)
         self.layer.events.highlight.connect(self.slot_user_highlight_data)
+        self.layer.events.select.connect(self.slot_user_select_data)
 
     # Slots start here:
 
@@ -245,11 +247,47 @@ class UndoRedoWidget(QtWidgets.QWidget):
             # need to get the point's index and coordinates
             # self.layer_data - event.source.data ?
             logger.info("delete")
+            deleted_indices, deleted_points = _get_diff(
+                self.layer_data, event.source.data
+            )
+            command = DeleteCommand(
+                event.source, deleted_indices, deleted_points
+            )
+            command_manager.add_command_to_undo_stack(command)
             self.layer_data = event.source.data
 
-        else:
-            # push move command to undo stack
-            logger.info("move")
+    def slot_user_select_data(self, event: Event) -> None:
+        logger.info(vars(event))
+        logger.info(type(event))
+        logger.info(event.source.name)
+        if setsAreEqual(event.source.selected_data, self.layer_data):
+            # no change
+            return
+
+        self.layer = event.source
+        self.layer_id = hash(event.source)
+
+        command_manager = self.command_managers.get(self.layer_id)
+        if not command_manager:
+            command_manager = CommandManager(self.layer)
+            self.command_managers[self.layer_id] = command_manager
+            logger.info(f"added command manager for layer id {self.layer_id}")
+
+        if self.layer_data is None:
+            self.layer_data = event.source.data
+            logger.info("returning")
+            return
+
+        # push move command to undo stack
+        logger.info("move")
+        changed_indices, prev_data, new_data = _get_diff_for_change(
+            event.source.data, self.layer_data
+        )
+        command = MoveCommand(
+            event.source, changed_indices, prev_data, new_data
+        )
+        command_manager.add_command_to_undo_stack(command)
+        self.layer_data = event.source.data
 
 
 # def _get_diff(
@@ -270,7 +308,9 @@ class UndoRedoWidget(QtWidgets.QWidget):
 #     return (indices, diff)
 
 
-def _get_diff(layer1_data: np.ndarray, layer2_data: np.ndarray):
+def _get_diff(
+    layer1_data: np.ndarray, layer2_data: np.ndarray
+) -> Tuple[List[int], np.ndarray]:
     # this assumes layer1_data is larger than layer2_data
     ptr1, ptr2 = 0, 0
     differing_indices = []
@@ -292,6 +332,29 @@ def _get_diff(layer1_data: np.ndarray, layer2_data: np.ndarray):
         ptr1 += 1
 
     res = (differing_indices, np.array(diff_data))
+    logger.info(res)
+    return res
+
+
+def _get_diff_for_change(
+    layer1_data: np.ndarray, layer2_data: np.ndarray
+) -> Tuple[List[int], np.ndarray, np.ndarray]:
+    # this assumes layer1_data is newer than layer2_data
+    # this also assumes that their lengths are equal
+    ptr = 0
+    changed_indices = []
+    prev_data = []
+    new_data = []
+
+    while ptr < len(layer1_data):
+        diff = layer1_data[ptr] - layer2_data[ptr]
+        if diff.any():  # if there is any difference between the two values
+            changed_indices.append(ptr)
+            new_data.append((layer1_data[ptr]).tolist())
+            prev_data.append((layer2_data[ptr]).tolist())
+        ptr += 1
+
+    res = (changed_indices, np.array(prev_data), np.array(new_data))
     logger.info(res)
     return res
 
