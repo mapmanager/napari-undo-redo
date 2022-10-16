@@ -9,7 +9,7 @@ BUGS:
 
 import warnings
 from pprint import pprint
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional
 
 import numpy as np
 from napari.layers import Layer
@@ -252,31 +252,48 @@ class UndoRedoWidget(QtWidgets.QWidget):
             logger.info("move")
 
 
-def _get_diff(
-    layer1_data: np.ndarray, layer2_data: np.ndarray
-) -> Tuple[List[int], np.ndarray]:
-    # get the points which are in layer1 but not in layer2
-    diff = np.setdiff1d(layer1_data, layer2_data)
-    logger.info(diff)
-    logger.info(diff.shape)
-    logger.info(len(diff))
+# def _get_diff(
+#     layer1_data: np.ndarray, layer2_data: np.ndarray
+# ) -> Tuple[List[int], np.ndarray]:
+#     # get the points which are in layer1 but not in layer2
+#     diff = np.setdiff1d(layer1_data, layer2_data)
+#     logger.info(diff)
+#     logger.info(diff.shape)
+#     logger.info(len(diff))
+#     logger.info(np.where(layer1_data == diff))
+#     index = np.where(layer1_data == diff)[0]
+#     logger.info(f"Found index: {index}")
+#     indices = list(set(index.tolist()))
 
-    """
-    [
-        [10, 10],
-        [20, 30],
-        [50, 100]
-    ]
-    """
+#     logger.info(indices)
+#     logger.info(layer1_data)
+#     return (indices, diff)
 
-    logger.info(np.where(layer1_data == diff))
-    index = np.where(layer1_data == diff)[0]
-    logger.info(f"Found index: {index}")
-    indices = list(set(index.tolist()))
 
-    logger.info(indices)
-    logger.info(layer1_data)
-    return (indices, diff)
+def _get_diff(layer1_data: np.ndarray, layer2_data: np.ndarray):
+    # this assumes layer1_data is larger than layer2_data
+    ptr1, ptr2 = 0, 0
+    differing_indices = []
+    diff_data = []
+
+    while ptr1 < len(layer1_data) and ptr2 < len(layer2_data):
+        diff = layer1_data[ptr1] - layer2_data[ptr2]
+        if diff.any():  # if there is any difference between the two values
+            differing_indices.append(ptr1)
+            diff_data.append((layer1_data[ptr1]).tolist())
+            ptr1 += 1
+        else:  # the two values are equal, proceed
+            ptr1 += 1
+            ptr2 += 1
+
+    while ptr1 < len(layer1_data):
+        differing_indices.append(ptr1)
+        diff_data.append((layer1_data[ptr1]).tolist())
+        ptr1 += 1
+
+    res = (differing_indices, np.array(diff_data))
+    logger.info(res)
+    return res
 
 
 # # test simulation
