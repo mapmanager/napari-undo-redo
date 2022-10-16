@@ -212,6 +212,7 @@ class UndoRedoWidget(QtWidgets.QWidget):
     def slot_user_highlight_data(self, event: Event) -> None:
         logger.info(vars(event))
         logger.info(event.source.name)
+
         if setsAreEqual(event.source.selected_data, self.layer_data):
             # no change
             return
@@ -224,6 +225,10 @@ class UndoRedoWidget(QtWidgets.QWidget):
             command_manager = CommandManager(self.layer)
             self.command_managers[self.layer_id] = command_manager
             logger.info(f"added command manager for layer id {self.layer_id}")
+
+        if command_manager.is_operation_in_progress():
+            logger.info("undo/redo in progress. Ignoring event.")
+            return
 
         if self.layer_data is None:
             self.layer_data = event.source.data

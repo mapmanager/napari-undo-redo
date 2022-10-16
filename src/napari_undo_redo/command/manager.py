@@ -22,6 +22,7 @@ class CommandManager:
         Initialize the undo and redo stacks for a napari layer
         """
         self.layer = layer
+        self._in_progress = False
         self.undo_stack = deque()
         self.redo_stack = deque()
 
@@ -35,17 +36,24 @@ class CommandManager:
         else:
             print("Cannot add same commands to undo stack...")
 
+    def is_operation_in_progress(self) -> bool:
+        return self._in_progress
+
     def undo(self) -> None:
         if self.undo_stack:
+            self._in_progress = True
             cmd = self.undo_stack.pop()
             self.redo_stack.append(cmd)
             cmd.undo()
+            self._in_progress = False
 
     def redo(self) -> None:
         if self.redo_stack:
+            self._in_progress = True
             cmd = self.redo_stack.pop()
             self.undo_stack.append(cmd)
             cmd.redo()
+            self._in_progress = False
 
 
 def main():
