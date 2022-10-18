@@ -16,4 +16,6 @@ formatter = logging.Formatter(
 )
 handler.setFormatter(formatter)
 
+old_handler = logger.handlers[0]
+logger.removeHandler(old_handler)
 logger.addHandler(handler)
