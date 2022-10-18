@@ -36,7 +36,7 @@ class UndoRedoWidget(QtWidgets.QWidget):
         self.viewer = viewer
         self.layer = None
         self.layer_id = 0
-        self.layer_data = None
+        self.layer_data = np.array([])
         # TODO: using layer name as key for now. Will change it to id once
         # https://github.com/napari/napari/issues/5229 is fixed.
         self.command_managers: Dict[int:CommandManager] = {}
@@ -159,8 +159,7 @@ class UndoRedoWidget(QtWidgets.QWidget):
 
         # set the global layer to the new layer and connect it to events
         self.layer = layer
-        # if 'data' in vars(layer).keys():
-        if layer.data.any():
+        if "data" in vars(layer).keys() and layer.data.any():
             self.layer_data = layer.data.copy()
         # self.layer.events.data.connect(self.save_state)
         # self.layer.events.name.connect(self.save_state)
@@ -195,7 +194,8 @@ class UndoRedoWidget(QtWidgets.QWidget):
         pprint(f"event: {vars(event)}")
         pprint(f"event type: {event.type}")
 
-        newly_inserted_layer = event.source
+        # newly_inserted_layer = event.source
+        newly_inserted_layer = event.value
         if newly_inserted_layer:
             self.connect_layer(newly_inserted_layer)
 
@@ -230,11 +230,6 @@ class UndoRedoWidget(QtWidgets.QWidget):
 
         if command_manager.is_operation_in_progress():
             logger.info("undo/redo in progress. Ignoring event.")
-            return
-
-        if self.layer_data is None:
-            self.layer_data = event.source.data.copy()
-            logger.info("returning")
             return
 
         if len(event.source.data) > len(self.layer_data):
@@ -279,57 +274,6 @@ class UndoRedoWidget(QtWidgets.QWidget):
                 command_manager.add_command_to_undo_stack(command)
                 self.layer_data = event.source.data.copy()
 
-    def slot_user_select_data(self, event: Event) -> None:
-        logger.info(vars(event))
-        logger.info(type(event))
-        logger.info(event.source.name)
-        if setsAreEqual(event.source.selected_data, self.layer_data):
-            # no change
-            return
-
-        self.layer = event.source
-        self.layer_id = hash(event.source)
-
-        command_manager = self.command_managers.get(self.layer_id)
-        if not command_manager:
-            command_manager = CommandManager(self.layer)
-            self.command_managers[self.layer_id] = command_manager
-            logger.info(f"added command manager for layer id {self.layer_id}")
-
-        if self.layer_data is None:
-            self.layer_data = event.source.data.copy()
-            logger.info("returning")
-            return
-
-        # push move command to undo stack
-        logger.info("move")
-        changed_indices, prev_data, new_data = _get_diff_for_change(
-            event.source.data, self.layer_data
-        )
-        command = MoveCommand(
-            event.source, changed_indices, prev_data, new_data
-        )
-        command_manager.add_command_to_undo_stack(command)
-        self.layer_data = event.source.data.copy()
-
-
-# def _get_diff(
-#     layer1_data: np.ndarray, layer2_data: np.ndarray
-# ) -> Tuple[List[int], np.ndarray]:
-#     # get the points which are in layer1 but not in layer2
-#     diff = np.setdiff1d(layer1_data, layer2_data)
-#     logger.info(diff)
-#     logger.info(diff.shape)
-#     logger.info(len(diff))
-#     logger.info(np.where(layer1_data == diff))
-#     index = np.where(layer1_data == diff)[0]
-#     logger.info(f"Found index: {index}")
-#     indices = list(set(index.tolist()))
-
-#     logger.info(indices)
-#     logger.info(layer1_data)
-#     return (indices, diff)
-
 
 def _get_diff(
     layer1_data: np.ndarray, layer2_data: np.ndarray
@@ -355,29 +299,6 @@ def _get_diff(
         ptr1 += 1
 
     res = (differing_indices, np.array(diff_data))
-    logger.info(res)
-    return res
-
-
-def _get_diff_for_change(
-    layer1_data: np.ndarray, layer2_data: np.ndarray
-) -> Tuple[List[int], np.ndarray, np.ndarray]:
-    # this assumes layer1_data is newer than layer2_data
-    # this also assumes that their lengths are equal
-    ptr = 0
-    changed_indices = []
-    prev_data = []
-    new_data = []
-
-    while ptr < len(layer1_data):
-        diff = layer1_data[ptr] - layer2_data[ptr]
-        if diff.any():  # if there is any difference between the two values
-            changed_indices.append(ptr)
-            new_data.append((layer1_data[ptr]).tolist())
-            prev_data.append((layer2_data[ptr]).tolist())
-        ptr += 1
-
-    res = (changed_indices, np.array(prev_data), np.array(new_data))
     logger.info(res)
     return res
 
