@@ -36,9 +36,17 @@ class MoveCommand(Command):
         For undoing move, we need to set points to there previous coordinates
         using indices that changed
         """
+        print("undoing")
+        print(f"Before: {self.layer.data}")
         for i in range(len(self.indices)):
             self.layer.data[self.indices[i]] = self.prev_coordinates[i]
+        print(f"After: {self.layer.data}")
+        self.layer.refresh()
 
     def redo(self):
+        print("redoing")
+        print(f"Before: {self.layer.data}")
         for i in range(len(self.indices)):
             self.layer.data[self.indices[i]] = self.new_coordinates[i]
+        print(f"After: {self.layer.data}")
+        self.layer.refresh()

@@ -151,22 +151,24 @@ class UndoRedoWidget(QtWidgets.QWidget):
             # self.layer.events.name.disconnect(self.save_state)
             # self.layer.events.symbol.disconnect(self.save_state)
             # self.layer.events.size.disconnect(self.save_state)
-            self.layer.events.highlight.disconnect(
-                self.slot_user_highlight_data
-            )
-            self.layer.events.select.disconnect(self.slot_user_select_data)
+            # self.layer.events.highlight.disconnect(
+            #     self.slot_user_highlight_data
+            # )
+            self.layer.events.data.disconnect(self.slot_user_highlight_data)
+            # self.layer.events.select.disconnect(self.slot_user_select_data)
 
         # set the global layer to the new layer and connect it to events
         self.layer = layer
         # if 'data' in vars(layer).keys():
         if layer.data.any():
-            self.layer_data = layer.data
+            self.layer_data = layer.data.copy()
         # self.layer.events.data.connect(self.save_state)
         # self.layer.events.name.connect(self.save_state)
         # self.layer.events.symbol.connect(self.save_state)
         # self.layer.events.size.connect(self.save_state)
-        self.layer.events.highlight.connect(self.slot_user_highlight_data)
-        self.layer.events.select.connect(self.slot_user_select_data)
+        # self.layer.events.highlight.connect(self.slot_user_highlight_data)
+        self.layer.events.data.connect(self.slot_user_highlight_data)
+        # self.layer.events.select.connect(self.slot_user_select_data)
 
     # Slots start here:
 
@@ -231,7 +233,7 @@ class UndoRedoWidget(QtWidgets.QWidget):
             return
 
         if self.layer_data is None:
-            self.layer_data = event.source.data
+            self.layer_data = event.source.data.copy()
             logger.info("returning")
             return
 
@@ -245,7 +247,7 @@ class UndoRedoWidget(QtWidgets.QWidget):
             )
             command = AddCommand(event.source, added_indices, added_points)
             command_manager.add_command_to_undo_stack(command)
-            self.layer_data = event.source.data
+            self.layer_data = event.source.data.copy()
 
         elif len(event.source.data) < len(self.layer_data):
             # push delete command to undo stack
@@ -253,13 +255,29 @@ class UndoRedoWidget(QtWidgets.QWidget):
             # self.layer_data - event.source.data ?
             logger.info("delete")
             deleted_indices, deleted_points = _get_diff(
-                self.layer_data, event.source.data
+                self.layer_data, event.source.data.copy()
             )
             command = DeleteCommand(
                 event.source, deleted_indices, deleted_points
             )
             command_manager.add_command_to_undo_stack(command)
-            self.layer_data = event.source.data
+            self.layer_data = event.source.data.copy()
+
+        else:
+            logger.info("move")
+            changed_indices = list(event.source.selected_data)
+            logger.info(changed_indices)
+            previous_data = self.layer_data[changed_indices]
+            new_data = event.source.data[changed_indices]
+            logger.info(f"Previous: {previous_data}, New: {new_data}")
+
+            if not np.array_equal(previous_data, new_data):
+                logger.info("creating move command")
+                command = MoveCommand(
+                    event.source, changed_indices, previous_data, new_data
+                )
+                command_manager.add_command_to_undo_stack(command)
+                self.layer_data = event.source.data.copy()
 
     def slot_user_select_data(self, event: Event) -> None:
         logger.info(vars(event))
@@ -279,7 +297,7 @@ class UndoRedoWidget(QtWidgets.QWidget):
             logger.info(f"added command manager for layer id {self.layer_id}")
 
         if self.layer_data is None:
-            self.layer_data = event.source.data
+            self.layer_data = event.source.data.copy()
             logger.info("returning")
             return
 
@@ -292,7 +310,7 @@ class UndoRedoWidget(QtWidgets.QWidget):
             event.source, changed_indices, prev_data, new_data
         )
         command_manager.add_command_to_undo_stack(command)
-        self.layer_data = event.source.data
+        self.layer_data = event.source.data.copy()
 
 
 # def _get_diff(
