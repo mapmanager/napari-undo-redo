@@ -6,7 +6,7 @@ from napari.layers import Layer
 from napari_undo_redo.command.base import Command
 
 
-class MoveCommand(Command):
+class MovePointCommand(Command):
     def __init__(
         self,
         layer: Layer,
@@ -22,7 +22,7 @@ class MoveCommand(Command):
         self.indices = indices
 
     def __eq__(self, __o: Command) -> bool:
-        if not isinstance(__o, MoveCommand):
+        if not isinstance(__o, MovePointCommand):
             return False
 
         return (

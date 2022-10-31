@@ -2,10 +2,10 @@ from collections import deque
 
 from napari.layers import Layer
 
-from napari_undo_redo.command.add import AddCommand
 from napari_undo_redo.command.base import Command
-from napari_undo_redo.command.delete import DeleteCommand
-from napari_undo_redo.command.move import MoveCommand
+from napari_undo_redo.command.points.add import AddPointCommand
+from napari_undo_redo.command.points.delete import DeletePointCommand
+from napari_undo_redo.command.points.move import MovePointCommand
 
 # from _my_logger import logger
 
@@ -80,7 +80,7 @@ def main():
     points_layer.data = np.array(
         [[0, 10, 10], [0, 20, 20], [0, 30, 30], [0, 40, 40], [0, 50, 50]]
     )
-    addPoint = AddCommand(points_layer, [4], np.array([[0, 50, 50]]))
+    addPoint = AddPointCommand(points_layer, [4], np.array([[0, 50, 50]]))
     manager.add_command_to_undo_stack(addPoint)
     print(f"Points after adding a point:\n{points_layer.data}")
 
@@ -95,12 +95,12 @@ def main():
     # points_layer.data = np.array(
     #     [[0, 10, 10], [0, 20, 20], [0, 30, 30], [0, 40, 40]]
     # )
-    # delPoint = DeleteCommand(points_layer, [4], np.array([[0, 50, 50]]))
+    # delPoint = DeletePointCommand(points_layer, [4], np.array([[0, 50, 50]]))
 
     points_layer.data = np.array(
         [[0, 10, 10], [0, 20, 20], [0, 40, 40], [0, 50, 50]]
     )
-    delPoint = DeleteCommand(points_layer, [2], np.array([[0, 30, 30]]))
+    delPoint = DeletePointCommand(points_layer, [2], np.array([[0, 30, 30]]))
 
     manager.add_command_to_undo_stack(delPoint)
     print(f"Points after delete a point:\n{points_layer.data}")
@@ -116,7 +116,7 @@ def main():
     points_layer.data = np.array(
         [[0, 10, 10], [0, 20, 20], [0, 30, 30], [0, 40, 40], [0, 60, 60]]
     )
-    movePoint = MoveCommand(
+    movePoint = MovePointCommand(
         points_layer, [4], np.array([[0, 50, 50]]), np.array([[0, 60, 60]])
     )
     manager.add_command_to_undo_stack(movePoint)

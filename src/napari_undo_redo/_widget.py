@@ -17,7 +17,12 @@ from napari.viewer import Viewer
 from qtpy import QtWidgets
 
 from ._my_logger import logger
-from .command import AddCommand, CommandManager, DeleteCommand, MoveCommand
+from .command import (
+    AddPointCommand,
+    CommandManager,
+    DeletePointCommand,
+    MovePointCommand,
+)
 from .utils import setsAreEqual
 
 
@@ -238,7 +243,9 @@ class UndoRedoWidget(QtWidgets.QWidget):
             added_indices, added_points = _get_diff(
                 event.source.data, self.layer_data
             )
-            command = AddCommand(event.source, added_indices, added_points)
+            command = AddPointCommand(
+                event.source, added_indices, added_points
+            )
             command_manager.add_command_to_undo_stack(command)
             self.layer_data = event.source.data.copy()
 
@@ -250,7 +257,7 @@ class UndoRedoWidget(QtWidgets.QWidget):
             deleted_indices, deleted_points = _get_diff(
                 self.layer_data, event.source.data.copy()
             )
-            command = DeleteCommand(
+            command = DeletePointCommand(
                 event.source, deleted_indices, deleted_points
             )
             command_manager.add_command_to_undo_stack(command)
@@ -266,7 +273,7 @@ class UndoRedoWidget(QtWidgets.QWidget):
 
             if not np.array_equal(previous_data, new_data):
                 logger.info("creating move command")
-                command = MoveCommand(
+                command = MovePointCommand(
                     event.source, changed_indices, previous_data, new_data
                 )
                 command_manager.add_command_to_undo_stack(command)

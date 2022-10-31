@@ -6,7 +6,7 @@ from napari.layers import Layer
 from napari_undo_redo.command.base import Command
 
 
-class DeleteCommand(Command):
+class DeletePointCommand(Command):
     def __init__(
         self,
         layer: Layer,
@@ -19,7 +19,7 @@ class DeleteCommand(Command):
         self.deleted_points = deleted_points
 
     def __eq__(self, __o: Command) -> bool:
-        if not isinstance(__o, DeleteCommand):
+        if not isinstance(__o, DeletePointCommand):
             return False
 
         return (
@@ -28,7 +28,7 @@ class DeleteCommand(Command):
 
     def undo(self):
         """
-        Undo of DeleteCommand should be an add operation
+        Undo of DeletePointCommand should be an add operation
         """
         for i in range(len(self.indices_of_deleted_points)):
             self.layer.data = np.insert(
@@ -40,7 +40,7 @@ class DeleteCommand(Command):
 
     def redo(self):
         """
-        For an DeleteCommand, redo implements delete
+        For an DeletePointCommand, redo implements delete
         This will involve removing the point that
         was added back because of the undo
         """

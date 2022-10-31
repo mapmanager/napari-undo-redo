@@ -1,4 +1,4 @@
-from .add import AddCommand  # noqa
-from .delete import DeleteCommand  # noqa
 from .manager import CommandManager  # noqa
-from .move import MoveCommand  # noqa
+from .points.add import AddPointCommand  # noqa
+from .points.delete import DeletePointCommand  # noqa
+from .points.move import MovePointCommand  # noqa

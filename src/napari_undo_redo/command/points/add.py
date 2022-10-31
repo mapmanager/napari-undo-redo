@@ -6,7 +6,7 @@ from napari.layers import Layer
 from napari_undo_redo.command.base import Command
 
 
-class AddCommand(Command):
+class AddPointCommand(Command):
     def __init__(
         self,
         layer: Layer,
@@ -14,7 +14,7 @@ class AddCommand(Command):
         added_points: np.ndarray,
     ) -> None:
         """
-        Initialize the AddCommand instance
+        Initialize the AddPointCommand instance
 
         Args:
             layer: napari layer for which we want to undo/redo add operation
@@ -28,9 +28,9 @@ class AddCommand(Command):
 
     def __eq__(self, __o: Command) -> bool:
         """
-        If a command is not an AddCommand or
+        If a command is not an AddPointCommand or
         if the data in that command is not the
-        same as the current AddCommand object,
+        same as the current AddPointCommand object,
         then return False
 
         This method is used to prevent adding
@@ -39,7 +39,7 @@ class AddCommand(Command):
         Args:
             __o: Any command object
         """
-        if not isinstance(__o, AddCommand):
+        if not isinstance(__o, AddPointCommand):
             return False
 
         return (
