@@ -154,6 +154,7 @@ class UndoRedoWidget(QtWidgets.QWidget):
 
         # set the global layer to the new layer and connect it to events
         self.layer = layer
+        self.layer_id = hash(layer)
         if "data" in vars(layer).keys() and layer.data.any():
             self.layer_data = layer.data.copy()
         # self.layer.events.data.connect(self.save_state)
@@ -174,6 +175,8 @@ class UndoRedoWidget(QtWidgets.QWidget):
         """
         currently_selected_layer = self.find_active_layers()
         if currently_selected_layer and currently_selected_layer != self.layer:
+            logger.info(f"New layer selected: {currently_selected_layer}")
+            logger.info(f"New layer id: {hash(currently_selected_layer)}")
             self.connect_layer(currently_selected_layer)
 
     def slot_insert_layer(self, event: Event) -> None:
