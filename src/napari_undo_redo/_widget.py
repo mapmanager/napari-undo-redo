@@ -61,10 +61,6 @@ class UndoRedoWidget(QtWidgets.QWidget):
                 logger.info(active_layer)
                 self.layer = active_layer
                 self._init_command_manager(active_layer)
-                # event = Event("init")
-                # event._push_source(self.layer)
-                # self.save_state(event)
-                # self.save_state(Event("init", {"source": self.layer}))
 
         # slots to detect a change in layer selection,
         # so that the undo widget can connect to the currently active layer
@@ -143,8 +139,6 @@ class UndoRedoWidget(QtWidgets.QWidget):
                 Args:
                         layer: Layer (Layer to connect to.)
         """
-        # TODO: find an event for any data change in napari viewer
-
         # first disconnect events from earlier layer if its not None
         if self.layer:
             # self.layer.events.data.disconnect(self.save_state)
