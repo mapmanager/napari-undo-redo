@@ -22,6 +22,7 @@ from .command import (
     CommandManager,
     DeletePointCommand,
     MovePointCommand,
+    SymbolChangeCommand,
 )
 from .utils import setsAreEqual
 
@@ -41,6 +42,7 @@ class UndoRedoWidget(QtWidgets.QWidget):
         self.layer = None
         self.layer_id = 0
         self.layer_data = np.array([])
+        self.layer_symbol = ""
         # TODO: using layer name as key for now. Will change it to id once
         # https://github.com/napari/napari/issues/5229 is fixed.
         self.command_managers: Dict[int:CommandManager] = {}
@@ -85,6 +87,18 @@ class UndoRedoWidget(QtWidgets.QWidget):
         )
         self.command_managers[self.layer_id] = CommandManager(layer)
         self.connect_layer(self.layer)
+
+    def _get_command_manager(self, layer: Layer) -> CommandManager:
+        self.layer = layer
+        self.layer_id = hash(layer)
+
+        command_manager = self.command_managers.get(self.layer_id)
+        if not command_manager:
+            command_manager = CommandManager(self.layer)
+            self.command_managers[self.layer_id] = command_manager
+            logger.info(f"added command manager for layer id {self.layer_id}")
+
+        return command_manager
 
     def undo(self):
         logger.info(f"undo called for layer id {self.layer_id}")
@@ -145,29 +159,29 @@ class UndoRedoWidget(QtWidgets.QWidget):
         """
         # first disconnect events from earlier layer if its not None
         if self.layer:
-            # self.layer.events.data.disconnect(self.save_state)
             # self.layer.events.name.disconnect(self.save_state)
-            # self.layer.events.symbol.disconnect(self.save_state)
-            # self.layer.events.size.disconnect(self.save_state)
+            self.layer.events.symbol.disconnect(self.slot_symbol_change)
+            self.layer.events.size.disconnect(self.slot_size_change)
             # self.layer.events.highlight.disconnect(
             #     self.slot_user_highlight_data
             # )
-            self.layer.events.data.disconnect(self.slot_user_highlight_data)
+            self.layer.events.data.disconnect(self.slot_data_change)
             # self.layer.events.select.disconnect(self.slot_user_select_data)
 
             self.layer_data = np.array([])
+            self.layer_symbol = ""
 
         # set the global layer to the new layer and connect it to events
         self.layer = layer
         self.layer_id = hash(layer)
+        self.layer_symbol = self.layer.symbol
         if "data" in vars(layer).keys() and layer.data.any():
             self.layer_data = layer.data.copy()
-        # self.layer.events.data.connect(self.save_state)
         # self.layer.events.name.connect(self.save_state)
-        # self.layer.events.symbol.connect(self.save_state)
-        # self.layer.events.size.connect(self.save_state)
+        self.layer.events.symbol.connect(self.slot_symbol_change)
+        self.layer.events.size.connect(self.slot_size_change)
         # self.layer.events.highlight.connect(self.slot_user_highlight_data)
-        self.layer.events.data.connect(self.slot_user_highlight_data)
+        self.layer.events.data.connect(self.slot_data_change)
         # self.layer.events.select.connect(self.slot_user_select_data)
 
     # Slots start here:
@@ -214,7 +228,7 @@ class UndoRedoWidget(QtWidgets.QWidget):
         if currently_selected_layer and currently_selected_layer != self.layer:
             self.connect_layer(currently_selected_layer)
 
-    def slot_user_highlight_data(self, event: Event) -> None:
+    def slot_data_change(self, event: Event) -> None:
         # logger.info(vars(event))
         # logger.info(event.source.name)
 
@@ -222,14 +236,7 @@ class UndoRedoWidget(QtWidgets.QWidget):
             # no change
             return
 
-        self.layer = event.source
-        self.layer_id = hash(event.source)
-
-        command_manager = self.command_managers.get(self.layer_id)
-        if not command_manager:
-            command_manager = CommandManager(self.layer)
-            self.command_managers[self.layer_id] = command_manager
-            logger.info(f"added command manager for layer id {self.layer_id}")
+        command_manager = self._get_command_manager(event.source)
 
         if command_manager.is_operation_in_progress():
             logger.info("undo/redo in progress. Ignoring event.")
@@ -278,6 +285,24 @@ class UndoRedoWidget(QtWidgets.QWidget):
                 )
                 command_manager.add_command_to_undo_stack(command)
                 self.layer_data = event.source.data.copy()
+
+    def slot_symbol_change(self, event: Event) -> None:
+        command_manager = self._get_command_manager(event.source)
+
+        if command_manager.is_operation_in_progress():
+            logger.info("undo/redo in progress. Ignoring event.")
+            return
+
+        logger.info(f"prev layer symbol: {self.layer_symbol}")
+        logger.info(f"new layer symbol: {event.source.symbol}")
+        command = SymbolChangeCommand(
+            event.source, self.layer_symbol, event.source.symbol
+        )
+        command_manager.add_command_to_undo_stack(command)
+        self.layer_symbol = event.source.symbol
+
+    def slot_size_change(self, event: Event) -> None:
+        logger.info(event)
 
 
 def _get_diff(

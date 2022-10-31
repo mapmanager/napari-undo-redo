@@ -33,7 +33,7 @@ class MovePointCommand(Command):
 
     def undo(self):
         """
-        For undoing move, we need to set points to there previous coordinates
+        For undoing move, we need to set points to their previous coordinates
         using indices that changed
         """
         print("undoing")
