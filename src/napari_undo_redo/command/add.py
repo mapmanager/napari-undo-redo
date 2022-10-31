@@ -52,7 +52,7 @@ class AddCommand(Command):
         This will involve removing the point that was added before the undo
         """
         # axis 0 for deleting row-wisefrom 2D array
-        print(self.indices_of_added_points)
+        # print(self.indices_of_added_points)
         self.layer.data = np.delete(
             self.layer.data, self.indices_of_added_points, 0
         )

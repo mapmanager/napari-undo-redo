@@ -8,7 +8,6 @@ BUGS:
 """
 
 import warnings
-from pprint import pprint
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
@@ -151,6 +150,8 @@ class UndoRedoWidget(QtWidgets.QWidget):
             self.layer.events.data.disconnect(self.slot_user_highlight_data)
             # self.layer.events.select.disconnect(self.slot_user_select_data)
 
+            self.layer_data = np.array([])
+
         # set the global layer to the new layer and connect it to events
         self.layer = layer
         if "data" in vars(layer).keys() and layer.data.any():
@@ -185,8 +186,8 @@ class UndoRedoWidget(QtWidgets.QWidget):
         logger.info(
             f'New layer "{event.source}" was inserted at index {event.index}'
         )
-        pprint(f"event: {vars(event)}")
-        pprint(f"event type: {event.type}")
+        # pprint(f"event: {vars(event)}")
+        # pprint(f"event type: {event.type}")
 
         # newly_inserted_layer = event.source
         newly_inserted_layer = event.value
@@ -206,8 +207,8 @@ class UndoRedoWidget(QtWidgets.QWidget):
             self.connect_layer(currently_selected_layer)
 
     def slot_user_highlight_data(self, event: Event) -> None:
-        logger.info(vars(event))
-        logger.info(event.source.name)
+        # logger.info(vars(event))
+        # logger.info(event.source.name)
 
         if setsAreEqual(event.source.selected_data, self.layer_data):
             # no change
