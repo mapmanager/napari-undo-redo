@@ -21,6 +21,7 @@ from .command import (
     AddPointCommand,
     CommandManager,
     DeletePointCommand,
+    FaceColorChangeCommand,
     MovePointCommand,
     SymbolChangeCommand,
 )
@@ -43,8 +44,7 @@ class UndoRedoWidget(QtWidgets.QWidget):
         self.layer_id = 0
         self.layer_data = np.array([])
         self.layer_symbol = ""
-        # TODO: using layer name as key for now. Will change it to id once
-        # https://github.com/napari/napari/issues/5229 is fixed.
+        self.layer_face_color = np.array([])
         self.command_managers: Dict[int:CommandManager] = {}
         self.configure_gui()
 
@@ -162,27 +162,31 @@ class UndoRedoWidget(QtWidgets.QWidget):
             # self.layer.events.name.disconnect(self.save_state)
             self.layer.events.symbol.disconnect(self.slot_symbol_change)
             self.layer.events.size.disconnect(self.slot_size_change)
-            # self.layer.events.highlight.disconnect(
-            #     self.slot_user_highlight_data
-            # )
             self.layer.events.data.disconnect(self.slot_data_change)
-            # self.layer.events.select.disconnect(self.slot_user_select_data)
+            self.layer.events.current_face_color.disconnect(
+                self.slot_face_color_change
+            )
+            # self.layer._face.events.current_color.disconnect(self.slot_face_color_change)
 
             self.layer_data = np.array([])
             self.layer_symbol = ""
+            self.layer_face_color = np.array([])
 
         # set the global layer to the new layer and connect it to events
         self.layer = layer
         self.layer_id = hash(layer)
         self.layer_symbol = self.layer.symbol
+        self.layer_face_color = self.layer._face.current_color
         if "data" in vars(layer).keys() and layer.data.any():
             self.layer_data = layer.data.copy()
         # self.layer.events.name.connect(self.save_state)
         self.layer.events.symbol.connect(self.slot_symbol_change)
         self.layer.events.size.connect(self.slot_size_change)
-        # self.layer.events.highlight.connect(self.slot_user_highlight_data)
         self.layer.events.data.connect(self.slot_data_change)
-        # self.layer.events.select.connect(self.slot_user_select_data)
+        # self.layer.events.current_face_color.connect(self.slot_face_color_change)
+        self.layer._face.events.current_color.connect(
+            self.slot_face_color_change
+        )
 
     # Slots start here:
 
@@ -303,6 +307,55 @@ class UndoRedoWidget(QtWidgets.QWidget):
 
     def slot_size_change(self, event: Event) -> None:
         logger.info(event)
+
+    def slot_face_color_change(self, event: Event) -> None:
+        """
+        The colors attribute in event.source is a 2D array containing
+        the colors of all points in the layer before the change in color
+        of any point or points
+        """
+        current_active_layer = self.find_active_layers()
+        if not current_active_layer:
+            logger.warning("No current active layer found")
+            return
+
+        indices_changed = list(current_active_layer._selected_data)
+        logger.info(f"Indices changed: {indices_changed}")
+        if not indices_changed:
+            logger.warning("No changed indices found")
+            return
+
+        all_old_colors = event.source.colors
+        logger.info(
+            f"All old Colors: {all_old_colors}"
+        )  # colors of all the points in the layer as a 2D layer
+
+        changed_old_colors = np.array(all_old_colors[indices_changed[0]])
+        for index in indices_changed[1:]:
+            changed_old_colors = np.vstack(
+                [changed_old_colors, all_old_colors[index]]
+            )
+        logger.info(f"Changed old colors: {changed_old_colors}")
+
+        new_color = event.source.current_color
+        logger.info(f"New Color: {new_color}")
+
+        command_manager = self._get_command_manager(current_active_layer)
+        if command_manager.is_operation_in_progress():
+            logger.info("undo/redo in progress. Ignoring event.")
+            return
+
+        logger.info(f"self.layer_face_color: {self.layer_face_color}")
+        command = FaceColorChangeCommand(
+            current_active_layer,
+            self.layer_face_color,
+            indices_changed,
+            changed_old_colors,
+            new_color,
+        )
+        command_manager.add_command_to_undo_stack(command)
+
+        self.layer_face_color = self.layer._face.current_color
 
 
 def _get_diff(
