@@ -21,6 +21,7 @@ from ._layer_type import LayerType
 from ._my_logger import logger
 from .command import (
     AddPointCommand,
+    AddShapeCommand,
     CommandManager,
     DeletePointCommand,
     FaceColorChangeCommand,
@@ -80,30 +81,6 @@ class UndoRedoWidget(QtWidgets.QWidget):
             self.slot_select_layer
         )
 
-    def _init_command_manager(self, layer: Layer):
-        # # if 'data' in vars(layer).keys():
-        # if layer.data:
-        #     self.layer_data = layer.data
-        self.layer_id = hash(layer)
-        logger.info(
-            "_init_command_manager: adding command manager for "
-            + f"layer id {self.layer_id}"
-        )
-        self.command_managers[self.layer_id] = CommandManager(layer)
-        self.connect_layer(self.layer)
-
-    def _get_command_manager(self, layer: Layer) -> CommandManager:
-        self.layer = layer
-        self.layer_id = hash(layer)
-
-        command_manager = self.command_managers.get(self.layer_id)
-        if not command_manager:
-            command_manager = CommandManager(self.layer)
-            self.command_managers[self.layer_id] = command_manager
-            logger.info(f"added command manager for layer id {self.layer_id}")
-
-        return command_manager
-
     def undo(self):
         logger.info(f"undo called for layer id {self.layer_id}")
         command_manager = self.command_managers.get(self.layer_id)
@@ -127,6 +104,7 @@ class UndoRedoWidget(QtWidgets.QWidget):
         command_manager.redo()
 
     # widget related functions:
+
     def configure_gui(self) -> None:
         """
         Configure a QHBoxLayout to hold the undo and redo buttons.
@@ -200,6 +178,11 @@ class UndoRedoWidget(QtWidgets.QWidget):
             self.layer._face.events.current_color.connect(
                 self.slot_points_face_color_change
             )
+        elif self.layer_type == LayerType.SHAPES:
+            self.layer.events.data.connect(self.slot_shapes_data_change)
+            if "data" in vars(layer).keys() and layer.data.any():
+                self.layer_data = layer.data.copy()
+                logger.info(f"shapes layer data: {self.layer_data}")
 
     # Slots start here:
 
@@ -244,6 +227,8 @@ class UndoRedoWidget(QtWidgets.QWidget):
         currently_selected_layer = self.find_active_layers()
         if currently_selected_layer and currently_selected_layer != self.layer:
             self.connect_layer(currently_selected_layer)
+
+    # Points layer event handling
 
     def slot_points_data_change(self, event: Event) -> None:
         # logger.info(vars(event))
@@ -369,6 +354,62 @@ class UndoRedoWidget(QtWidgets.QWidget):
         command_manager.add_command_to_undo_stack(command)
 
         self.layer_face_color = self.layer._face.current_color
+
+    # Shapes layer event handling
+
+    def slot_shapes_data_change(self, event: Event) -> None:
+        command_manager = self._get_command_manager(event.source)
+
+        if command_manager.is_operation_in_progress():
+            logger.info("undo/redo in progress. Ignoring event.")
+            return
+
+        # add shape command
+        if len(event.source.data) > len(self.layer_data):
+            added_indices = [
+                i for i in range(len(self.layer_data), len(event.source.data))
+            ]
+            added_shapes = [event.source.data[i] for i in added_indices]
+            shape_types = [event.source.shape_type[i] for i in added_indices]
+            logger.info(f"added_indices = {added_indices}")
+            logger.info(f"added_shapes = {added_shapes}")
+            logger.info(f"shape_types = {shape_types}")
+
+            command = AddShapeCommand(
+                event.source, added_indices, added_shapes, shape_types
+            )
+            command_manager.add_command_to_undo_stack(command)
+            self.layer_data = event.source.data.copy()
+
+        # delete shape command
+
+        # move shape command
+
+    # Private methods:
+
+    def _init_command_manager(self, layer: Layer):
+        # # if 'data' in vars(layer).keys():
+        # if layer.data:
+        #     self.layer_data = layer.data
+        self.layer_id = hash(layer)
+        logger.info(
+            "_init_command_manager: adding command manager for "
+            + f"layer id {self.layer_id}"
+        )
+        self.command_managers[self.layer_id] = CommandManager(layer)
+        self.connect_layer(self.layer)
+
+    def _get_command_manager(self, layer: Layer) -> CommandManager:
+        self.layer = layer
+        self.layer_id = hash(layer)
+
+        command_manager = self.command_managers.get(self.layer_id)
+        if not command_manager:
+            command_manager = CommandManager(self.layer)
+            self.command_managers[self.layer_id] = command_manager
+            logger.info(f"added command manager for layer id {self.layer_id}")
+
+        return command_manager
 
     def _set_layer_type(self, layer: Layer):
         if isinstance(layer, napari.layers.points.points.Points):

@@ -2,11 +2,13 @@
 
 Shapes layer supports 5 types of shapes:
 
-- ellipse
-- rectangle
-- polygon
-- line
-- path
+- ellipse: data = np.array(
+        [corner, corner + size_v, corner + size_h + size_v, corner + size_h])
+- rectangle: data = np.array(
+        [corner, corner + size_v, corner + size_h + size_v, corner + size_h])
+- polygon:
+- line: data = np.array([corner, corner + full_size])
+- path:
 
 Except ellipse, all have vertex add and vertex delete properties.
 
