@@ -10,12 +10,14 @@ BUGS:
 import warnings
 from typing import Dict, List, Optional, Tuple
 
+import napari
 import numpy as np
 from napari.layers import Layer
 from napari.utils.events import Event
 from napari.viewer import Viewer
 from qtpy import QtWidgets
 
+from ._layer_type import LayerType
 from ._my_logger import logger
 from .command import (
     AddPointCommand,
@@ -45,6 +47,8 @@ class UndoRedoWidget(QtWidgets.QWidget):
         self.layer_data = np.array([])
         self.layer_symbol = ""
         self.layer_face_color = np.array([])
+        self.layer_type = LayerType.NONE
+
         self.command_managers: Dict[int:CommandManager] = {}
         self.configure_gui()
 
@@ -159,34 +163,43 @@ class UndoRedoWidget(QtWidgets.QWidget):
         """
         # first disconnect events from earlier layer if its not None
         if self.layer:
-            # self.layer.events.name.disconnect(self.save_state)
-            self.layer.events.symbol.disconnect(self.slot_symbol_change)
-            self.layer.events.size.disconnect(self.slot_size_change)
-            self.layer.events.data.disconnect(self.slot_data_change)
-            self.layer.events.current_face_color.disconnect(
-                self.slot_face_color_change
-            )
-            # self.layer._face.events.current_color.disconnect(self.slot_face_color_change)
+            if self.layer_type == LayerType.POINTS:
+                # self.layer.events.name.disconnect(self.save_state)
+                self.layer.events.symbol.disconnect(
+                    self.slot_points_symbol_change
+                )
+                self.layer.events.size.disconnect(self.slot_points_size_change)
+                self.layer.events.data.disconnect(self.slot_points_data_change)
+                # self.layer.events.current_face_color.disconnect(
+                #     self.slot_points_face_color_change
+                # )
+                self.layer._face.events.current_color.disconnect(
+                    self.slot_points_face_color_change
+                )
 
-            self.layer_data = np.array([])
-            self.layer_symbol = ""
-            self.layer_face_color = np.array([])
+                self.layer_data = np.array([])
+                self.layer_symbol = ""
+                self.layer_face_color = np.array([])
 
         # set the global layer to the new layer and connect it to events
         self.layer = layer
+        self._set_layer_type(layer)
         self.layer_id = hash(layer)
-        self.layer_symbol = self.layer.symbol
-        self.layer_face_color = self.layer._face.current_color
-        if "data" in vars(layer).keys() and layer.data.any():
-            self.layer_data = layer.data.copy()
-        # self.layer.events.name.connect(self.save_state)
-        self.layer.events.symbol.connect(self.slot_symbol_change)
-        self.layer.events.size.connect(self.slot_size_change)
-        self.layer.events.data.connect(self.slot_data_change)
-        # self.layer.events.current_face_color.connect(self.slot_face_color_change)
-        self.layer._face.events.current_color.connect(
-            self.slot_face_color_change
-        )
+
+        if self.layer_type == LayerType.POINTS:
+            self.layer_symbol = self.layer.symbol
+            self.layer_face_color = self.layer._face.current_color
+            if "data" in vars(layer).keys() and layer.data.any():
+                self.layer_data = layer.data.copy()
+
+            # self.layer.events.name.connect(self.save_state)
+            self.layer.events.symbol.connect(self.slot_points_symbol_change)
+            self.layer.events.size.connect(self.slot_points_size_change)
+            self.layer.events.data.connect(self.slot_points_data_change)
+            # self.layer.events.current_face_color.connect(self.slot_points_face_color_change)
+            self.layer._face.events.current_color.connect(
+                self.slot_points_face_color_change
+            )
 
     # Slots start here:
 
@@ -232,7 +245,7 @@ class UndoRedoWidget(QtWidgets.QWidget):
         if currently_selected_layer and currently_selected_layer != self.layer:
             self.connect_layer(currently_selected_layer)
 
-    def slot_data_change(self, event: Event) -> None:
+    def slot_points_data_change(self, event: Event) -> None:
         # logger.info(vars(event))
         # logger.info(event.source.name)
 
@@ -290,7 +303,7 @@ class UndoRedoWidget(QtWidgets.QWidget):
                 command_manager.add_command_to_undo_stack(command)
                 self.layer_data = event.source.data.copy()
 
-    def slot_symbol_change(self, event: Event) -> None:
+    def slot_points_symbol_change(self, event: Event) -> None:
         command_manager = self._get_command_manager(event.source)
 
         if command_manager.is_operation_in_progress():
@@ -305,10 +318,10 @@ class UndoRedoWidget(QtWidgets.QWidget):
         command_manager.add_command_to_undo_stack(command)
         self.layer_symbol = event.source.symbol
 
-    def slot_size_change(self, event: Event) -> None:
+    def slot_points_size_change(self, event: Event) -> None:
         logger.info(event)
 
-    def slot_face_color_change(self, event: Event) -> None:
+    def slot_points_face_color_change(self, event: Event) -> None:
         """
         The colors attribute in event.source is a 2D array containing
         the colors of all points in the layer before the change in color
@@ -356,6 +369,14 @@ class UndoRedoWidget(QtWidgets.QWidget):
         command_manager.add_command_to_undo_stack(command)
 
         self.layer_face_color = self.layer._face.current_color
+
+    def _set_layer_type(self, layer: Layer):
+        if isinstance(layer, napari.layers.points.points.Points):
+            self.layer_type = LayerType.POINTS
+        elif isinstance(layer, napari.layers.shapes.shapes.Shapes):
+            self.layer_type = LayerType.SHAPES
+
+        logger.info(f"Set layer type to {self.layer_type}")
 
 
 def _get_diff(
