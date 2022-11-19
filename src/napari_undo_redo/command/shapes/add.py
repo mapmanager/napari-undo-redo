@@ -15,12 +15,12 @@ class AddShapeCommand(Command):
         shape_types: List[str],
     ) -> None:
         """
-        Initialize the AddPointCommand instance
+        Initialize the AddShapeCommand instance
 
         Args:
             layer: napari layer for which we want to undo/redo add operation
-            data: list of points that we're added
-            indices: indices of added points
+            added_shapes: list of shapes that were added
+            indices_of_added_shapes: indices of added shapes
         """
         super().__init__()
         self.layer = layer
@@ -64,13 +64,16 @@ class AddShapeCommand(Command):
             self.layer.data, self.indices_of_added_shapes, 0
         )
 
+        # The following line also deletes data from self.layer.data,
+        # causing double deletion.
+        # The line above also updates self.layer.shape_type
         # self.layer.shape_type = np.delete(
         #     self.layer.shape_type, self.indices_of_added_shapes, 0
         # )
 
     def redo(self):
         """
-        redo should simply add data
+        redo should simply add shapes back
         """
         self.layer.add(
             self.added_shapes,

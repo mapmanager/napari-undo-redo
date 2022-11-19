@@ -24,6 +24,7 @@ from .command import (
     AddShapeCommand,
     CommandManager,
     DeletePointCommand,
+    DeleteShapeCommand,
     FaceColorChangeCommand,
     MovePointCommand,
     SymbolChangeCommand,
@@ -49,6 +50,7 @@ class UndoRedoWidget(QtWidgets.QWidget):
         self.layer_symbol = ""
         self.layer_face_color = np.array([])
         self.layer_type = LayerType.NONE
+        self.layer_shape_types = np.array([])  # property of shapes layer
 
         self.command_managers: Dict[int:CommandManager] = {}
         self.configure_gui()
@@ -158,6 +160,7 @@ class UndoRedoWidget(QtWidgets.QWidget):
                 self.layer_data = np.array([])
                 self.layer_symbol = ""
                 self.layer_face_color = np.array([])
+                self.layer_shape_types = np.array([])
 
         # set the global layer to the new layer and connect it to events
         self.layer = layer
@@ -182,6 +185,7 @@ class UndoRedoWidget(QtWidgets.QWidget):
             self.layer.events.data.connect(self.slot_shapes_data_change)
             if "data" in vars(layer).keys() and layer.data.any():
                 self.layer_data = layer.data.copy()
+                self.layer_shape_types = layer.shape_type.copy()
                 logger.info(f"shapes layer data: {self.layer_data}")
 
     # Slots start here:
@@ -380,9 +384,26 @@ class UndoRedoWidget(QtWidgets.QWidget):
             )
             command_manager.add_command_to_undo_stack(command)
             self.layer_data = event.source.data.copy()
+            self.layer_shape_types = event.source.shape_type.copy()
 
         # delete shape command
+        elif len(event.source.data) < len(self.layer_data):
+            deleted_indices, deleted_shapes = _get_diff(
+                self.layer_data, event.source.data.copy()
+            )
+            logger.info(f"layer shape type: {self.layer_shape_types}")
+            logger.info(f"event shape type: {event.source.shape_type}")
+            shape_types = [self.layer_shape_types[i] for i in deleted_indices]
+            logger.info(f"deleted_indices = {deleted_indices}")
+            logger.info(f"deleted_shapes = {deleted_shapes}")
+            logger.info(f"shape_types = {shape_types}")
 
+            command = DeleteShapeCommand(
+                event.source, deleted_indices, deleted_shapes, shape_types
+            )
+            command_manager.add_command_to_undo_stack(command)
+            self.layer_data = event.source.data.copy()
+            self.layer_shape_types = event.source.shape_type.copy()
         # move shape command
 
     # Private methods:
